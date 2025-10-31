@@ -7,7 +7,7 @@ export default function Home() {
     const featured = mockProducts.filter((p) => p.featured);
 
     return (
-        <div className="group relative overflow-hidden rounded-2xl bg-gray-900/70 m-10">
+        <div className="group relative overflow-hidden rounded-2xl m-10">
             {/* ── HERO ── */}
             <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background dark:to-background/50 p-12 md:p-20 text-center">
                 <div className="absolute inset-0 bg-grid-white/5 dark:bg-grid-muted/5" />
