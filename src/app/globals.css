@@ -120,3 +120,34 @@
     @apply bg-background text-foreground;
   }
 }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light Mode (Default) */
+:root {
+  --background: #ffffff;
+  --background-dark: #0f172a;
+  --foreground: #1e293b;
+  --foreground-dark: #e2e8f0;
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --card-dark: #1e293b;
+  --card-foreground-dark: #e2e8f0;
+  --border: #e2e8f0;
+  --border-dark: #334155;
+}
+
+/* Dark Mode */
+.dark {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --card: #1e293b;
+  --card-foreground: #e2e8f0;
+  --border: #334155;
+}
+
+* {
+  @apply transition-colors duration-200;
+}

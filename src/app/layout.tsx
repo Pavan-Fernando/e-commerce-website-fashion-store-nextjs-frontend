@@ -18,13 +18,12 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en">
-        <body className={inter.className}>
+        <html lang="en" suppressHydrationWarning>
+        <body className="bg-[var(--background)] text-[var(--foreground)]">
         <Header />
         <main className="min-h-screen">{children}</main>
         <Footer />
-        {/* Toast container */}
-        <Toaster position="top-right" reverseOrder={false} />
+        <Toaster />
         </body>
         </html>
     );
