@@ -1,38 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import {Search, Menu, X, Sun, Moon, User, LogOut, Settings, Package} from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Search, Menu, X, Sun, Moon, User, LogOut, Settings, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import CartSheet from "@/components/cart/CartSheet";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDarkMode } from "@/hooks/user-dark-mode";
+
+const navItems = [
+    { href: "/", label: "Home" },
+    { href: "/products", label: "Products" },
+    { href: "/about", label: "About Us" },
+    { href: "/contact", label: "Contact Us" },
+];
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { isDark, toggle } = useDarkMode();
+    const pathname = usePathname();
 
-    // ── Mock Auth State (Replace with real auth later) ──
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const user = isLoggedIn
-        ? { name: "Emma R.", email: "emma@trendvibe.com", avatar: "/avatar.jpg" }
-        : null;
+    // Auth state
+    const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
+
+    useEffect(() => {
+        const stored = localStorage.getItem("user");
+        if (stored) setUser(JSON.parse(stored));
+    }, []);
 
     const handleLogout = () => {
-        setIsLoggedIn(false);
+        localStorage.removeItem("user");
+        setUser(null);
         setMobileMenuOpen(false);
     };
 
-    const handleLogin = () => {
-        setIsLoggedIn(true);
-        setMobileMenuOpen(false);
-    };
+    const NavLinks = () => (
+        <>
+            {navItems.map((item) => (
+                <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`px-4 py-2 text-sm font-medium transition-colors rounded-md ${
+                        pathname === item.href
+                            ? "text-primary bg-primary/10"
+                            : "text-foreground hover:text-primary hover:bg-muted/70"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                >
+                    {item.label}
+                </Link>
+            ))}
+        </>
+    );
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            {/* ── Top Toolbar ── */}
             <div className="container flex h-16 items-center justify-between px-4 md:px-6">
 
                 {/* Logo */}
@@ -42,8 +67,13 @@ export default function Header() {
           </span>
                 </Link>
 
+                {/* ── Desktop Navigation ── */}
+                <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+                    <NavLinks />
+                </nav>
+
                 {/* Desktop Search */}
-                <div className="hidden md:flex flex-1 max-w-md mx-8">
+                <div className="hidden lg:flex flex-1 max-w-md mx-8">
                     <div className="relative w-full group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                         <Input
@@ -56,9 +86,9 @@ export default function Header() {
                 {/* Right Actions */}
                 <div className="flex items-center gap-2 md:gap-4">
 
-                    {/* ── PROFILE ICON (Desktop) ── */}
+                    {/* Profile (Desktop) */}
                     <div className="hidden md:block">
-                        {isLoggedIn && user ? (
+                        {user ? (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="rounded-full">
@@ -76,38 +106,35 @@ export default function Header() {
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem asChild>
                                         <Link href="/profile" className="flex items-center gap-2">
-                                            <User className="h-4 w-4" />
-                                            My Profile
+                                            <User className="h-4 w-4" /> My Profile
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild>
                                         <Link href="/orders" className="flex items-center gap-2">
-                                            <Package className="h-4 w-4" />
-                                            Orders
+                                            <Package className="h-4 w-4" /> Orders
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild>
                                         <Link href="/settings" className="flex items-center gap-2">
-                                            <Settings className="h-4 w-4" />
-                                            Settings
+                                            <Settings className="h-4 w-4" /> Settings
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                                        <LogOut className="h-4 w-4 mr-2" />
-                                        Logout
+                                        <LogOut className="h-4 w-4 mr-2" /> Logout
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         ) : (
-                            <Button variant="outline" size="sm" onClick={handleLogin}>
-                                <User className="h-4 w-4 mr-2" />
-                                Login
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href="/login">
+                                    <User className="h-4 w-4 mr-2" /> Login
+                                </Link>
                             </Button>
                         )}
                     </div>
 
-                    {/* Dark Mode Toggle */}
+                    {/* Dark Mode */}
                     <Button
                         variant="ghost"
                         size="icon"
@@ -147,28 +174,33 @@ export default function Header() {
                             />
                         </div>
 
-                        {/* ── PROFILE (Mobile) ── */}
-                        <div className="flex items-center justify-between">
-                            {isLoggedIn && user ? (
-                                <div className="flex items-center gap-3">
-                                    <Avatar className="h-9 w-9">
-                                        <AvatarImage src={user.avatar} />
-                                        <AvatarFallback>{user.name.split(" ").map(n => n[0]).join("")}</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <p className="text-sm font-medium">{user.name}</p>
-                                        <button
-                                            onClick={handleLogout}
-                                            className="text-xs text-destructive hover:underline"
-                                        >
-                                            Logout
-                                        </button>
+                        {/* Mobile Nav */}
+                        <nav className="flex flex-col gap-1">
+                            <NavLinks />
+                        </nav>
+
+                        {/* Mobile Profile */}
+                        <div className="border-t pt-4">
+                            {user ? (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-9 w-9">
+                                            <AvatarImage src={user.avatar} />
+                                            <AvatarFallback>{user.name.split(" ").map(n => n[0]).join("")}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="text-sm font-medium">{user.name}</p>
+                                            <button onClick={handleLogout} className="text-xs text-destructive hover:underline">
+                                                Logout
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
-                                <Button variant="outline" size="sm" onClick={handleLogin} className="w-full">
-                                    <User className="h-4 w-4 mr-2" />
-                                    Login
+                                <Button variant="outline" size="sm" asChild className="w-full">
+                                    <Link href="/login">
+                                        <User className="h-4 w-4 mr-2" /> Login
+                                    </Link>
                                 </Button>
                             )}
                         </div>
@@ -178,31 +210,11 @@ export default function Header() {
                             variant="ghost"
                             size="icon"
                             onClick={toggle}
-                            className="absolute right-4 top-5"
+                            className="absolute right-4 top-20"
                             aria-label="Toggle dark mode"
                         >
                             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                         </Button>
-
-                        {/* Mobile Nav */}
-                        <nav className="flex flex-col gap-1">
-                            {[
-                                { href: "/", label: "Home" },
-                                { href: "/products", label: "All Products" },
-                                { href: "/dresses", label: "Dresses" },
-                                { href: "/sale", label: "Sale" },
-                                { href: "/new", label: "New Arrivals" },
-                            ].map((item) => (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    className="flex items-center px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted/70 rounded-md transition-colors"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    {item.label}
-                                </Link>
-                            ))}
-                        </nav>
                     </div>
                 </div>
             )}
