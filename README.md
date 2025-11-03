@@ -1,14 +1,5 @@
 # TrendVibe – Online Fashion Store (Frontend)
 
-![TrendVibe](https://via.placeholder.com/1200x600.png?text=TrendVibe+Banner)  
-*Elevate your style. Sustainably.*
-
----
-
-## Live Demo
-
-[https://trendvibe.vercel.app](https://trendvibe.vercel.app) *(Deployed via Vercel)*
-
 ---
 
 ## Features
