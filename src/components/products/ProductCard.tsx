@@ -23,7 +23,7 @@ export default function ProductCard({ product }: { product: Product }) {
             <div className="aspect-square relative overflow-hidden">
                 <Link href={`/products/${product.id}`} className="block">
                     <Image
-                        src={product.images[0] || "/placeholder.jpg"}
+                        src={product.images[0] || "/dress3.jpg"}
                         alt={product.name}
                         fill
                         className="object-cover transition-transform duration-500 group-hover:scale-110"

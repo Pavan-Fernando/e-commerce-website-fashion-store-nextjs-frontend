@@ -7,7 +7,7 @@ export default function Home() {
     const featured = mockProducts.filter((p) => p.featured);
 
     return (
-        <div className="group relative overflow-hidden rounded-2xl m-10">
+        <div className="group relative overflow-hidden rounded-2xl ml-80 mr-80 mt-10 mb-10">
             {/* ── HERO ── */}
             <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background dark:to-background/50 p-12 md:p-20 text-center">
                 <div className="absolute inset-0 bg-grid-white/5 dark:bg-grid-muted/5" />
@@ -50,7 +50,7 @@ export default function Home() {
                 </div>
             </section>
 
-             ── ALL PRODUCTS ──
+             {/*── ALL PRODUCTS ──*/}
             <section className="mt-16 md:mt-20">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-3xl md:text-4xl font-semibold">All Products</h2>

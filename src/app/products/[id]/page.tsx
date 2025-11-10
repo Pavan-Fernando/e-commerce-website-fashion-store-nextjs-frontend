@@ -53,7 +53,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                         <>
                             <div className="aspect-square relative overflow-hidden rounded-xl bg-card border border-border shadow-xl group">
                                 <Image
-                                    src={selectedImage || "/placeholder.jpg"}
+                                    src={selectedImage || "/dress3.jpg"}
                                     alt={product.name}
                                     fill
                                     className="object-cover transition-transform duration-700 group-hover:scale-110"

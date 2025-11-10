@@ -55,7 +55,7 @@ export default function CartSheet() {
                                 {/* Image */}
                                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-card border border-border">
                                     <Image
-                                        src={item.product.images[0] || "/placeholder.jpg"}
+                                        src={item.product.images[0] || "/dress3.jpg"}
                                         alt={item.product.name}
                                         fill
                                         className="object-cover"
