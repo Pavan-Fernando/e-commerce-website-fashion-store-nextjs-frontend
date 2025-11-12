@@ -26,6 +26,14 @@ export interface UserResponse {
     imageUrl: string;
 }
 
+export interface SignUpRequest {
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    email: string;
+    password: string;
+}
+
 export const getUser = {
     async getUserById(userId: number): Promise<UserResponse> {
         const token = sessionStorage.getItem("accessToken");
@@ -45,21 +53,29 @@ export const getUser = {
 
 
 export const customer = {
-    async cusSignUp(userId: number): Promise<UserResponse> {
-        const token = sessionStorage.getItem("accessToken");
-        if (!token) throw new Error("No token");
+    async signup(data: Omit<SignUpRequest, "confirmPassword">): Promise<void> {
+        const payload: SignUpRequest = {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phoneNumber: data.phoneNumber,
+            email: data.email,
+            password: data.password,
+        };
 
-        const res = await fetch(`${API_URL}/users/${userId}`, {
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Accept": "application/json",
-            },
+        const res = await fetch(`${API_URL}/users/customer/create`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
         });
 
-        if (!res.ok) throw new Error("Failed to fetch user");
-        return res.json();
+        if (res.status != 201) {
+            const err = await res.json().catch(() => ({}));
+            const message = err.error?.message || "Signup failed";
+            throw new Error(message);
+        }
     },
 };
+
 
 export const authApi = {
     async login(username: string, password: string): Promise<LoginResponse> {
