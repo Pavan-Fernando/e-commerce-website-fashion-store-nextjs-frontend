@@ -43,22 +43,19 @@ export default function SignUpPage() {
     setErrors({});
 
     try {
-      // 1. Validate (including confirmPassword)
       SignUpSchema.parse(form);
 
-      // 2. Prepare payload WITHOUT confirmPassword
+      const encodedPassword = btoa(form.password);
       const signupPayload = {
         firstName: form.firstName,
         lastName: form.lastName,
         phoneNumber: form.phoneNumber,
         email: form.email,
-        password: form.password,
+        password: encodedPassword,
       };
 
-      // 3. Call backend (returns tokens + userId)
      await customer.signup(signupPayload);
 
-      // 7. Success
       toast.success("Account created successfully!");
 
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -68,9 +65,6 @@ export default function SignUpPage() {
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         const fieldErrors: Record<string, string> = {};
-        // err.errors.forEach((e) => {
-        //   if (e.path[0]) fieldErrors[e.path[0] as string] = e.message;
-        // });
         setErrors(fieldErrors);
       } else {
         toast.error(err.message || "Signup failed");

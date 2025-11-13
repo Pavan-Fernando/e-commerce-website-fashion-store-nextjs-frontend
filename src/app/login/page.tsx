@@ -27,7 +27,8 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const loginData = await authApi.login(email, password);
+      const encodedPassword = btoa(password);
+      const loginData = await authApi.login(email, encodedPassword);
 
       sessionStorage.setItem("accessToken", loginData.accessToken);
       sessionStorage.setItem("refreshToken", loginData.refreshToken);
