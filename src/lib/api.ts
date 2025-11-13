@@ -34,7 +34,19 @@ export interface SignUpRequest {
     password: string;
 }
 
-export const getUser = {
+export interface UpdateUserRequest {
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    email: string;
+}
+
+export interface ChangePasswordRequest {
+    currentPassword: string;
+    newPassword: string;
+}
+
+export const userClient = {
     async getUserById(userId: number): Promise<UserResponse> {
         const token = sessionStorage.getItem("accessToken");
         if (!token) throw new Error("No token");
@@ -47,6 +59,67 @@ export const getUser = {
         });
 
         if (!res.ok) throw new Error("Failed to fetch user");
+        return res.json();
+    },
+
+    async updateUser(userId: number, data: UpdateUserRequest): Promise<void> {
+        const token = sessionStorage.getItem("accessToken");
+        if (!token) throw new Error("Not authenticated");
+
+        const res = await fetch(`${API_URL}/users/${userId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || "Failed to update profile");
+        }
+    },
+
+    async changePassword(data: ChangePasswordRequest, userId: number | undefined): Promise<void> {
+        const token = sessionStorage.getItem("accessToken");
+        if (!token) throw new Error("Not authenticated");
+
+        const res = await fetch(`${API_URL}/users/password-change/${userId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || "Failed to change password");
+        }
+    },
+
+    async uploadAvatar(file: File): Promise<{ url: string }> {
+        const token = sessionStorage.getItem("accessToken");
+        if (!token) throw new Error("Not authenticated");
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const res = await fetch(`${API_URL}/images/upload`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+            },
+            body: formData,
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || "Failed to upload image");
+        }
+
         return res.json();
     },
 };

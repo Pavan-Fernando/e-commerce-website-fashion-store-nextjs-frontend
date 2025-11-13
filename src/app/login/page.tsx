@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
-import { authApi, getUser } from "@/lib/api";
+import {authApi, userClient} from "@/lib/api";
 import { triggerAuthChange } from "@/lib/auth-events";
 
 export default function LoginPage() {
@@ -34,7 +34,7 @@ export default function LoginPage() {
       sessionStorage.setItem("refreshToken", loginData.refreshToken);
       sessionStorage.setItem("expiresAt", String(Date.now() + loginData.expiresIn * 1000));
 
-      const userData = await getUser.getUserById(loginData.userId);
+      const userData = await userClient.getUserById(loginData.userId);
 
       const user = {
         userId: userData.userId,

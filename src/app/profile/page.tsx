@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import toast from "react-hot-toast";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,24 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Mail, Phone, MapPin, Package, Heart, Settings, LogOut, CheckCircle, AlertCircle } from "lucide-react";
-
-interface User {
-    name: string;
-    email: string;
-    phone?: string;
-    address?: string;
-    avatar?: string;
-}
+import { Settings, LogOut, Loader2, Camera } from "lucide-react";
+import { authApi, userClient } from "@/lib/api";
+import { triggerAuthChange } from "@/lib/auth-events";
 
 // ── Schemas ──
 const profileSchema = z.object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Invalid email"),
-    phone: z.string().optional(),
-    address: z.string().optional(),
+    firstName: z.string().min(2, "First name too short"),
+    lastName: z.string().min(2, "Last name too short"),
+    phoneNumber: z.string().optional(),
 });
 
 const passwordSchema = z.object({
@@ -44,105 +37,212 @@ const passwordSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>;
 type PasswordForm = z.infer<typeof passwordSchema>;
 
+interface User {
+    userId: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+    imageUrl?: string;
+}
+
 export default function ProfilePage() {
     const [user, setUser] = useState<User | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
 
-    // Load user from localStorage
+    // Load user
     useEffect(() => {
-        const stored = localStorage.getItem("user");
-        if (stored) {
-            setUser(JSON.parse(stored));
-        } else {
-            router.push("/login");
-        }
+        const loadUser = async () => {
+            const stored = sessionStorage.getItem("user");
+            if (!stored) {
+                router.push("/login");
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(stored);
+                const userData = await userClient.getUserById(parsed.userId);
+                setUser(userData);
+            } catch {
+                sessionStorage.clear();
+                router.push("/login");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadUser();
     }, [router]);
 
-    // Profile Form
+    // Forms
     const profileForm = useForm<ProfileForm>({
         resolver: zodResolver(profileSchema),
-        defaultValues: user || {},
+        defaultValues: {
+            firstName: "",
+            lastName: "",
+            phoneNumber: "",
+        },
     });
 
-    // Password Form
     const passwordForm = useForm<PasswordForm>({
         resolver: zodResolver(passwordSchema),
     });
 
-    // Save Profile
+    // Sync form with loaded user
+    useEffect(() => {
+        if (user) {
+            profileForm.reset({
+                firstName: user.firstName,
+                lastName: user.lastName,
+                phoneNumber: user.phoneNumber || "",
+            });
+        }
+    }, [user, profileForm]);
+
+    // Update profile
     const onProfileSubmit = async (data: ProfileForm) => {
-        setError(null);
-        setSuccess(null);
+        if (!user) return;
+        setLoading(true);
+
         try {
-            // Mock API
-            await new Promise((r) => setTimeout(r, 1000));
-            const updatedUser = { ...user, ...data };
-            localStorage.setItem("user", JSON.stringify(updatedUser));
-            setUser(updatedUser);
-            setSuccess("Profile updated successfully!");
-            setTimeout(() => setSuccess(null), 4000);
-        } catch {
-            setError("Failed to update profile.");
+            const updated = await userClient.updateUser(user.userId, data);
+            const newUser = { ...user, ...updated };
+            sessionStorage.setItem("user", JSON.stringify(newUser));
+            setUser(newUser);
+            triggerAuthChange();
+            toast.success("Profile updated successfully!");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to update profile");
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Change Password
+    // Change password
     const onPasswordSubmit = async (data: PasswordForm) => {
-        setError(null);
-        setSuccess(null);
+        setLoading(true);
+        const encodedCurrentPassword = btoa(data.currentPassword);
+        const encodedNewPassword = btoa(data.newPassword);
         try {
-            // Mock API
-            await new Promise((r) => setTimeout(r, 1000));
-            setSuccess("Password changed successfully!");
+            await userClient.changePassword(
+                { currentPassword: encodedCurrentPassword, newPassword: encodedNewPassword },
+                user?.userId
+            );
+            toast.success("Password changed successfully!");
             passwordForm.reset();
-            setTimeout(() => setSuccess(null), 4000);
-        } catch {
-            setError("Failed to change password.");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to change password");
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem("user");
+    // Upload avatar
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !user) return;
+
+        if (!file.type.startsWith("image/")) {
+            toast.error("Please select an image file");
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("Image must be under 5MB");
+            return;
+        }
+
+        setUploading(true);
+        try {
+            const { url } = await userClient.uploadAvatar(file);
+
+            const updateUserPayload = {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                phoneNumber: user.phoneNumber,
+                email: user.email,
+                imageUrl: url,
+            };
+
+            await userClient.updateUser(user.userId, updateUserPayload);
+
+            const newUser = { ...user, imageUrl: url };
+            sessionStorage.setItem("user", JSON.stringify(newUser));
+            setUser(newUser);
+            triggerAuthChange();
+
+            toast.success("Avatar updated!");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to upload image");
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
+
+    // Logout
+    const handleLogout = async () => {
+        try {
+            await authApi.logout();
+        } catch {}
+        sessionStorage.clear();
+        triggerAuthChange();
+        toast.success("Logged out successfully!");
         router.push("/login");
     };
 
-    if (!user) return null;
+    if (loading || !user) {
+        return (
+            <div className="container mx-auto px-4 py-12 flex justify-center">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-12 max-w-5xl">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16">
-                        <AvatarImage src={user.avatar} />
-                        <AvatarFallback>{user.name.split(" ").map((n) => n[0]).join("")}</AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                        <Avatar className="h-20 w-20 ring-4 ring-background">
+                            <AvatarImage src={user.imageUrl} />
+                            <AvatarFallback>
+                                {user.firstName[0]}{user.lastName[0]}
+                            </AvatarFallback>
+                        </Avatar>
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="absolute bottom-0 right-0 p-1.5 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-colors"
+                            aria-label="Change avatar"
+                        >
+                            {uploading ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                                <Camera className="h-3 w-3" />
+                            )}
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                        />
+                    </div>
                     <div className="text-center sm:text-left">
-                        <h1 className="text-2xl font-bold">{user.name}</h1>
+                        <h1 className="text-2xl font-bold">{user.firstName} {user.lastName}</h1>
                         <p className="text-muted-foreground">{user.email}</p>
                     </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
+                <Button variant="outline" size="sm" onClick={handleLogout} disabled={loading}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
                 </Button>
             </div>
-
-            {/* Success / Error */}
-            {success && (
-                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-2 text-green-700 dark:text-green-300">
-                    <CheckCircle className="h-5 w-5" />
-                    {success}
-                </div>
-            )}
-            {error && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-300">
-                    <AlertCircle className="h-5 w-5" />
-                    {error}
-                </div>
-            )}
 
             <Tabs defaultValue="account" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
@@ -151,7 +251,7 @@ export default function ProfilePage() {
                     <TabsTrigger value="wishlist">Wishlist</TabsTrigger>
                 </TabsList>
 
-                {/* ── ACCOUNT TAB ── */}
+                {/* ACCOUNT TAB */}
                 <TabsContent value="account" className="space-y-6 mt-6">
                     {/* Edit Profile */}
                     <Card>
@@ -163,51 +263,46 @@ export default function ProfilePage() {
                             <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label htmlFor="name">Full Name</Label>
+                                        <Label htmlFor="firstName">First Name</Label>
                                         <Input
-                                            id="name"
-                                            {...profileForm.register("name")}
-                                            placeholder="Emma Rose"
+                                            id="firstName"
+                                            {...profileForm.register("firstName")}
+                                            placeholder="First Name"
                                         />
-                                        {profileForm.formState.errors.name && (
+                                        {profileForm.formState.errors.firstName && (
                                             <p className="text-sm text-destructive">
-                                                {profileForm.formState.errors.name.message}
+                                                {profileForm.formState.errors.firstName.message}
                                             </p>
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="email">Email</Label>
+                                        <Label htmlFor="lastName">Last Name</Label>
                                         <Input
-                                            id="email"
-                                            type="email"
-                                            {...profileForm.register("email")}
-                                            placeholder="emma@example.com"
+                                            id="lastName"
+                                            {...profileForm.register("lastName")}
+                                            placeholder="Last Name"
                                         />
-                                        {profileForm.formState.errors.email && (
+                                        {profileForm.formState.errors.lastName && (
                                             <p className="text-sm text-destructive">
-                                                {profileForm.formState.errors.email.message}
+                                                {profileForm.formState.errors.lastName.message}
                                             </p>
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="phone">Phone Number</Label>
+                                        <Label htmlFor="phoneNumber">Phone Number</Label>
                                         <Input
-                                            id="phone"
-                                            {...profileForm.register("phone")}
-                                            placeholder="+1 (555) 123-4567"
+                                            id="phoneNumber"
+                                            {...profileForm.register("phoneNumber")}
+                                            placeholder="+94 77 123 4567"
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="address">Shipping Address</Label>
-                                        <Input
-                                            id="address"
-                                            {...profileForm.register("address")}
-                                            placeholder="123 Fashion St, NYC"
-                                        />
+                                        <Label>Email</Label>
+                                        <p className="text-sm text-muted-foreground">{user.email}</p>
                                     </div>
                                 </div>
-                                <Button type="submit" className="w-full sm:w-auto">
-                                    <Settings className="h-4 w-4 mr-2" />
+                                <Button type="submit" disabled={loading}>
+                                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Settings className="h-4 w-4 mr-2" />}
                                     Save Changes
                                 </Button>
                             </form>
@@ -265,7 +360,8 @@ export default function ProfilePage() {
                                         )}
                                     </div>
                                 </div>
-                                <Button type="submit" variant="outline" className="w-full sm:w-auto">
+                                <Button type="submit" variant="outline" disabled={loading}>
+                                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                                     Update Password
                                 </Button>
                             </form>
@@ -273,56 +369,21 @@ export default function ProfilePage() {
                     </Card>
                 </TabsContent>
 
-                {/* ── ORDERS TAB ── */}
+                {/* MOCK TABS */}
                 <TabsContent value="orders">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Recent Orders</CardTitle>
-                        </CardHeader>
+                        <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
                         <CardContent>
-                            <div className="space-y-4">
-                                {[1, 2].map((i) => (
-                                    <div key={i} className="flex items-center justify-between py-3 border-b last:border-0">
-                                        <div className="flex items-center gap-3">
-                                            <Package className="h-5 w-5 text-muted-foreground" />
-                                            <div>
-                                                <p className="font-medium">Order #TV{i}001</p>
-                                                <p className="text-sm text-muted-foreground">Apr {i + 10}, 2025</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-medium">$129.99</p>
-                                            <Badge variant="secondary" className="text-xs">
-                                                {i === 1 ? "Delivered" : "Shipped"}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <p className="text-muted-foreground">No orders yet.</p>
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                {/* ── WISHLIST TAB ── */}
                 <TabsContent value="wishlist">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Wishlist</CardTitle>
-                        </CardHeader>
+                        <CardHeader><CardTitle>Wishlist</CardTitle></CardHeader>
                         <CardContent>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {[1, 2, 3].map((i) => (
-                                    <div key={i} className="group cursor-pointer">
-                                        <div className="aspect-square relative overflow-hidden rounded-lg bg-muted mb-2">
-                                            <div className="flex items-center justify-center h-full">
-                                                <Heart className="h-8 w-8 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-                                            </div>
-                                        </div>
-                                        <p className="text-sm font-medium truncate">Summer Dress {i}</p>
-                                        <p className="text-sm text-primary font-bold">$79.99</p>
-                                    </div>
-                                ))}
-                            </div>
+                            <p className="text-muted-foreground">Your wishlist is empty.</p>
                         </CardContent>
                     </Card>
                 </TabsContent>
